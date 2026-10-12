@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!--
+  Disaster-site world + one camera UAV (uav0) that arms and takes off on its own.
+  Thesis-package replacement for simple_ros2_app/disaster_mission_launch.xml:
+  the drone, PX4 SITL, MAVROS and mission node come from sdt_uav_platform.
+-->
+<launch>
+    <arg name="takeoff_alt" default="2.0"/>
+
+    <!-- disaster.world refers to its props as model://<name>; keep any existing path (PX4 models). -->
+    <set_env name="GAZEBO_MODEL_PATH"
+             value="$(find-pkg-share semantic_twin_assets)/models:$(env GAZEBO_MODEL_PATH /usr/share/gazebo-11/models)"/>
+
+    <include file="$(find-pkg-share gazebo_ros)/launch/gzserver.launch.py">
+        <arg name="world" value="$(find-pkg-share semantic_twin)/worlds/disaster.world" />
+    </include>
+    <include file="$(find-pkg-share gazebo_ros)/launch/gzclient.launch.py" />
+
+    <include file="$(find-pkg-share sdt_uav_platform)/launch/uav_launch.xml">
+        <arg name="instance" value="0" />
+        <arg name="x" value="0.0"/>
+        <arg name="y" value="0.0"/>
+        <arg name="takeoff_alt" value="$(var takeoff_alt)"/>
+    </include>
+
+    <!-- Live view of the drone camera -->
+    <node pkg="rqt_image_view" exec="rqt_image_view" name="camera_view" args="/uav0/camera/image_raw" output="log" />
+</launch>

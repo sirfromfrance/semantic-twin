@@ -1,0 +1,416 @@
+<?xml version="1.0" ?>
+<!--
+  Part 1 (Physics & Environment): a collapsed-structure disaster scene for
+  the GPS-denied search-and-rescue mission. Physics/magnetic_field block is
+  copied from simple_ros2_app/worlds/outdoor.world so PX4 SITL's EKF2/compass
+  behave the same as in the working lab setup.
+
+  Layout: flat ground (vrc_driving_terrain), uav0 spawns at the origin
+  (see environment_launch.xml), with two collapsed-building clusters and
+  scattered debris around the coordinates the two person_actor "victims" are
+  placed at (10, 5) and (-8, 3) -- i.e. they're staged as if trapped in the
+  rubble -- plus extra clutter elsewhere so the scene isn't just two clean
+  piles in an empty field.
+
+  All models referenced via model:// are from the local Gazebo model cache
+  (~/.gazebo/models); nothing here needs a network fetch to spawn.
+-->
+<sdf version="1.5">
+  <world name="default">
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <include>
+      <uri>model://vrc_driving_terrain</uri>
+    </include>
+
+    <physics name='default_physics' default='0' type='ode'>
+      <gravity>0 0 -9.8066</gravity>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>10</iters>
+          <sor>1.3</sor>
+          <use_dynamic_moi_rescaling>0</use_dynamic_moi_rescaling>
+        </solver>
+        <constraints>
+          <cfm>0</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>100</contact_max_correcting_vel>
+          <contact_surface_layer>0.001</contact_surface_layer>
+        </constraints>
+      </ode>
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+      <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
+    </physics>
+
+    <gui>
+      <camera name='user_camera'>
+        <pose frame=''>-12 -14 10 0 0.45 0.9</pose>
+      </camera>
+    </gui>
+
+    <!-- ============================================================= -->
+    <!-- Cluster A: collapsed house near victim_0 (10, 5)               -->
+    <!-- ============================================================= -->
+
+    <include>
+      <uri>model://house_2</uri>
+      <name>ruined_house_a</name>
+      <pose>12 6 0 0 0.35 0.6</pose>
+    </include>
+
+    <include>
+      <uri>model://telephone_pole</uri>
+      <name>fallen_pole_a</name>
+      <pose>9 3.5 0.15 1.5708 0 1.1</pose>
+    </include>
+
+    <model name="rubble_pile_a">
+      <static>true</static>
+      <pose>10.5 4.5 0 0 0 0.4</pose>
+      <link name="link">
+
+        <collision name="c1">
+          <pose>0 0 0.25 0.05 0.1 0.2</pose>
+          <geometry><box><size>1.6 1.2 0.5</size></box></geometry>
+        </collision>
+        <visual name="v1">
+          <pose>0 0 0.25 0.05 0.1 0.2</pose>
+          <geometry><box><size>1.6 1.2 0.5</size></box></geometry>
+          <material><script><name>Gazebo/Grey</name></script></material>
+        </visual>
+
+        <collision name="c2">
+          <pose>1.1 0.6 0.35 0.3 -0.15 -0.5</pose>
+          <geometry><box><size>1.0 0.8 0.7</size></box></geometry>
+        </collision>
+        <visual name="v2">
+          <pose>1.1 0.6 0.35 0.3 -0.15 -0.5</pose>
+          <geometry><box><size>1.0 0.8 0.7</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+
+        <collision name="c3">
+          <pose>-0.9 0.5 0.15 0 0 1.0</pose>
+          <geometry><box><size>1.3 0.4 0.3</size></box></geometry>
+        </collision>
+        <visual name="v3">
+          <pose>-0.9 0.5 0.15 0 0 1.0</pose>
+          <geometry><box><size>1.3 0.4 0.3</size></box></geometry>
+          <material><script><name>Gazebo/Bricks</name></script></material>
+        </visual>
+
+        <collision name="c4">
+          <pose>-0.4 -1.0 0.2 0 0.2 -0.3</pose>
+          <geometry><box><size>0.9 0.9 0.4</size></box></geometry>
+        </collision>
+        <visual name="v4">
+          <pose>-0.4 -1.0 0.2 0 0.2 -0.3</pose>
+          <geometry><box><size>0.9 0.9 0.4</size></box></geometry>
+          <material><script><name>Gazebo/Grey</name></script></material>
+        </visual>
+
+        <collision name="c5">
+          <pose>0.6 -0.8 0.6 1.4 0 0.2</pose>
+          <geometry><cylinder><radius>0.12</radius><length>1.8</length></cylinder></geometry>
+        </collision>
+        <visual name="v5">
+          <pose>0.6 -0.8 0.6 1.4 0 0.2</pose>
+          <geometry><cylinder><radius>0.12</radius><length>1.8</length></cylinder></geometry>
+          <material><script><name>Gazebo/Wood</name></script></material>
+        </visual>
+
+      </link>
+    </model>
+
+    <include>
+      <uri>model://cardboard_box</uri>
+      <name>debris_box_a1</name>
+      <pose>11.8 5.3 0 0 0 0.2</pose>
+    </include>
+    <include>
+      <uri>model://cardboard_box</uri>
+      <name>debris_box_a2</name>
+      <pose>9.6 6.1 0 0.2 0.1 -0.4</pose>
+    </include>
+
+    <!-- ============================================================= -->
+    <!-- Cluster B: collapsed structure near victim_1 (-8, 3)           -->
+    <!-- ============================================================= -->
+
+    <include>
+      <uri>model://house_1</uri>
+      <name>ruined_house_b</name>
+      <pose>-10 4 0 0 0.25 -0.5</pose>
+    </include>
+
+    <include>
+      <uri>model://truss_bridge</uri>
+      <name>collapsed_bridge_b</name>
+      <pose>-6 1 0 0.35 0 1.9</pose>
+    </include>
+
+    <model name="rubble_pile_b">
+      <static>true</static>
+      <pose>-8.5 2.5 0 0 0 -0.6</pose>
+      <link name="link">
+
+        <collision name="c1">
+          <pose>0 0 0.3 0.1 0.05 0.5</pose>
+          <geometry><box><size>1.8 1.4 0.6</size></box></geometry>
+        </collision>
+        <visual name="v1">
+          <pose>0 0 0.3 0.1 0.05 0.5</pose>
+          <geometry><box><size>1.8 1.4 0.6</size></box></geometry>
+          <material><script><name>Gazebo/Bricks</name></script></material>
+        </visual>
+
+        <collision name="c2">
+          <pose>-1.0 -0.5 0.25 0 -0.2 0.8</pose>
+          <geometry><box><size>1.1 0.7 0.5</size></box></geometry>
+        </collision>
+        <visual name="v2">
+          <pose>-1.0 -0.5 0.25 0 -0.2 0.8</pose>
+          <geometry><box><size>1.1 0.7 0.5</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+
+        <collision name="c3">
+          <pose>0.8 0.7 0.5 1.55 0 -0.7</pose>
+          <geometry><cylinder><radius>0.15</radius><length>2.2</length></cylinder></geometry>
+        </collision>
+        <visual name="v3">
+          <pose>0.8 0.7 0.5 1.55 0 -0.7</pose>
+          <geometry><cylinder><radius>0.15</radius><length>2.2</length></cylinder></geometry>
+          <material><script><name>Gazebo/Grey</name></script></material>
+        </visual>
+
+      </link>
+    </model>
+
+    <include>
+      <uri>model://dumpster</uri>
+      <name>debris_dumpster_b</name>
+      <pose>-6.5 3.8 0 0 0 2.1</pose>
+    </include>
+
+    <!-- ============================================================= -->
+    <!-- Scattered clutter elsewhere: visual/GPS-denial obstructions    -->
+    <!-- ============================================================= -->
+
+    <include>
+      <uri>model://house_3</uri>
+      <name>ruined_house_c</name>
+      <pose>4 -9 0 0 0.15 1.2</pose>
+    </include>
+
+    <include>
+      <uri>model://radio_tower</uri>
+      <name>toppled_tower</name>
+      <pose>-3 -10 0 1.45 0 0.3</pose>
+    </include>
+
+    <include>
+      <uri>model://lamp_post</uri>
+      <name>fallen_lamp_post</name>
+      <pose>2 8 0.1 1.5 0 2.0</pose>
+    </include>
+
+    <include>
+      <uri>model://postbox</uri>
+      <name>fallen_postbox</name>
+      <pose>-2 9 0 1.4 0 0.5</pose>
+    </include>
+
+    <include>
+      <uri>model://fire_hydrant</uri>
+      <name>toppled_hydrant</name>
+      <pose>6 -3 0.15 1.4 0 -1.0</pose>
+    </include>
+
+    <model name="rubble_pile_c">
+      <static>true</static>
+      <pose>0 -6 0 0 0 0.9</pose>
+      <link name="link">
+        <collision name="c1">
+          <pose>0 0 0.2 0.05 0.1 0</pose>
+          <geometry><box><size>1.4 1.0 0.4</size></box></geometry>
+        </collision>
+        <visual name="v1">
+          <pose>0 0 0.2 0.05 0.1 0</pose>
+          <geometry><box><size>1.4 1.0 0.4</size></box></geometry>
+          <material><script><name>Gazebo/Grey</name></script></material>
+        </visual>
+        <collision name="c2">
+          <pose>0.9 -0.5 0.15 0 0 -0.4</pose>
+          <geometry><box><size>0.8 0.6 0.3</size></box></geometry>
+        </collision>
+        <visual name="v2">
+          <pose>0.9 -0.5 0.15 0 0 -0.4</pose>
+          <geometry><box><size>0.8 0.6 0.3</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================================= -->
+    <!-- People (this repo's person_actor model, from                  -->
+    <!-- semantic_twin/models/ -- see note below on GAZEBO_MODEL_PATH) -->
+    <!-- ============================================================= -->
+
+    <include>
+      <uri>model://person_actor</uri>
+      <name>bystander_1</name>
+      <pose>8 8 0 0 0 -2.3</pose>
+    </include>
+    <include>
+      <uri>model://person_actor</uri>
+      <name>bystander_2</name>
+      <pose>-6 6 0 0 0 1.0</pose>
+    </include>
+    <include>
+      <uri>model://person_actor</uri>
+      <name>rescuer_1</name>
+      <pose>0 2 0 0 0 0.4</pose>
+    </include>
+    <include>
+      <uri>model://person_actor</uri>
+      <name>bystander_3</name>
+      <pose>2 -8 0 0 0 2.6</pose>
+    </include>
+    <include>
+      <uri>model://person_actor</uri>
+      <name>rescuer_2</name>
+      <pose>13 3 0 0 0 -1.2</pose>
+    </include>
+
+    <!-- ============================================================= -->
+    <!-- Cars: an ambulance staged near cluster A, others abandoned     -->
+    <!-- around the site                                                -->
+    <!-- ============================================================= -->
+
+    <include>
+      <uri>model://ambulance</uri>
+      <name>ambulance_1</name>
+      <pose>15 2 0 0 0 2.0</pose>
+    </include>
+    <include>
+      <uri>model://hatchback_red</uri>
+      <name>abandoned_car_1</name>
+      <pose>-4.5 -1 0 0 0 0.7</pose>
+    </include>
+    <include>
+      <uri>model://hatchback_blue</uri>
+      <name>abandoned_car_2</name>
+      <pose>-2 -4 0 0 0 -1.5</pose>
+    </include>
+    <include>
+      <uri>model://pickup</uri>
+      <name>abandoned_pickup</name>
+      <pose>6 -10.5 0 0 0 0.2</pose>
+    </include>
+    <include>
+      <uri>model://suv</uri>
+      <name>abandoned_suv</name>
+      <pose>-13 -7 0 0 0 -0.9</pose>
+    </include>
+
+    <!-- ============================================================= -->
+    <!-- Loose bricks scattered around each rubble cluster              -->
+    <!-- ============================================================= -->
+
+    <model name="bricks_scatter_a">
+      <static>true</static>
+      <pose>11.8 3.8 0 0 0 0.2</pose>
+      <link name="link">
+        <collision name="b1"><pose>0 0 0.03 0.1 0 0.3</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b1"><pose>0 0 0.03 0.1 0 0.3</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b2"><pose>0.25 0.1 0.03 0 0.2 -0.5</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b2"><pose>0.25 0.1 0.03 0 0.2 -0.5</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b3"><pose>-0.2 0.2 0.09 0 0 1.1</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b3"><pose>-0.2 0.2 0.09 0 0 1.1</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b4"><pose>0.1 -0.3 0.03 0.4 0 0</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b4"><pose>0.1 -0.3 0.03 0.4 0 0</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b5"><pose>-0.3 -0.1 0.03 0 0 -0.8</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b5"><pose>-0.3 -0.1 0.03 0 0 -0.8</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+      </link>
+    </model>
+
+    <model name="bricks_scatter_b">
+      <static>true</static>
+      <pose>-9.3 1.6 0 0 0 -0.4</pose>
+      <link name="link">
+        <collision name="b1"><pose>0 0 0.03 0 0.1 0.6</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b1"><pose>0 0 0.03 0 0.1 0.6</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b2"><pose>0.2 -0.15 0.09 0.2 0 -1.0</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b2"><pose>0.2 -0.15 0.09 0.2 0 -1.0</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b3"><pose>-0.25 0.2 0.03 0 0 0.3</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b3"><pose>-0.25 0.2 0.03 0 0 0.3</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b4"><pose>0.1 0.3 0.03 0.3 0 0.9</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b4"><pose>0.1 0.3 0.03 0.3 0 0.9</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+      </link>
+    </model>
+
+    <model name="bricks_scatter_c">
+      <static>true</static>
+      <pose>-0.8 -5.3 0 0 0 1.3</pose>
+      <link name="link">
+        <collision name="b1"><pose>0 0 0.03 0 0 0</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b1"><pose>0 0 0.03 0 0 0</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b2"><pose>0.22 0.05 0.09 0.15 0 0.4</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b2"><pose>0.22 0.05 0.09 0.15 0 0.4</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+        <collision name="b3"><pose>-0.18 -0.2 0.03 0 0.1 -0.6</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry></collision>
+        <visual name="b3"><pose>-0.18 -0.2 0.03 0 0.1 -0.6</pose><geometry><box><size>0.2 0.1 0.06</size></box></geometry><material><script><name>Gazebo/Bricks</name></script></material></visual>
+      </link>
+    </model>
+
+    <!-- ============================================================= -->
+    <!-- Rubbish: loose trash piles plus scattered cardboard boxes      -->
+    <!-- ============================================================= -->
+
+    <model name="rubbish_pile_a">
+      <static>true</static>
+      <pose>13 6.5 0 0 0 0.5</pose>
+      <link name="link">
+        <collision name="r1"><pose>0 0 0.12 0.2 0.1 0.4</pose><geometry><box><size>0.5 0.4 0.25</size></box></geometry></collision>
+        <visual name="r1"><pose>0 0 0.12 0.2 0.1 0.4</pose><geometry><box><size>0.5 0.4 0.25</size></box></geometry><material><script><name>Gazebo/DarkGrey</name></script></material></visual>
+        <collision name="r2"><pose>0.4 0.3 0.08 0 0.3 -0.2</pose><geometry><box><size>0.3 0.3 0.15</size></box></geometry></collision>
+        <visual name="r2"><pose>0.4 0.3 0.08 0 0.3 -0.2</pose><geometry><box><size>0.3 0.3 0.15</size></box></geometry><material><script><name>Gazebo/Wood</name></script></material></visual>
+        <collision name="r3"><pose>-0.3 0.2 0.05 0.3 0 0.8</pose><geometry><box><size>0.25 0.2 0.1</size></box></geometry></collision>
+        <visual name="r3"><pose>-0.3 0.2 0.05 0.3 0 0.8</pose><geometry><box><size>0.25 0.2 0.1</size></box></geometry><material><script><name>Gazebo/DarkGrey</name></script></material></visual>
+      </link>
+    </model>
+
+    <model name="rubbish_pile_b">
+      <static>true</static>
+      <pose>-11 5.5 0 0 0 -0.7</pose>
+      <link name="link">
+        <collision name="r1"><pose>0 0 0.1 0.1 0 -0.3</pose><geometry><box><size>0.45 0.35 0.2</size></box></geometry></collision>
+        <visual name="r1"><pose>0 0 0.1 0.1 0 -0.3</pose><geometry><box><size>0.45 0.35 0.2</size></box></geometry><material><script><name>Gazebo/DarkGrey</name></script></material></visual>
+        <collision name="r2"><pose>-0.35 -0.2 0.07 0 0.2 0.5</pose><geometry><box><size>0.3 0.25 0.14</size></box></geometry></collision>
+        <visual name="r2"><pose>-0.35 -0.2 0.07 0 0.2 0.5</pose><geometry><box><size>0.3 0.25 0.14</size></box></geometry><material><script><name>Gazebo/Wood</name></script></material></visual>
+      </link>
+    </model>
+
+    <include>
+      <uri>model://cardboard_box</uri>
+      <name>debris_box_c1</name>
+      <pose>0.6 -6.8 0 0.3 0 0.9</pose>
+    </include>
+    <include>
+      <uri>model://cardboard_box</uri>
+      <name>debris_box_c2</name>
+      <pose>-1.4 -5.0 0 0 0.2 -0.6</pose>
+    </include>
+    <include>
+      <uri>model://dumpster</uri>
+      <name>debris_dumpster_a</name>
+      <pose>13.5 7.5 0 0 0 -1.3</pose>
+    </include>
+
+  </world>
+</sdf>

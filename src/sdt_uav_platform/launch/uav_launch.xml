@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- One camera drone: PX4 SITL + MAVROS + Gazebo entity + mission node, all under uav<N>.
+         Gazebo itself (world) is started by the caller. -->
+    <arg name="instance" default="0"/>
+    <arg name="x" default="0.0"/>
+    <arg name="y" default="0.0"/>
+    <arg name="sdf_model" default="px4_iris0_cam.sdf"/>
+    <arg name="takeoff_alt" default="5.0"/>
+    <arg name="land_at_end" default="false"/>
+    <arg name="start_mission" default="true"/>
+    <let name="drone_ns" value="uav$(var instance)"/>
+
+    <include file="$(find-pkg-share sdt_uav_platform)/launch/px4_sitl_launch.xml">
+        <arg name="instance" value="$(var instance)"/>
+    </include>
+
+    <include file="$(find-pkg-share sdt_uav_platform)/launch/mavros_launch.xml">
+        <arg name="instance" value="$(var instance)"/>
+    </include>
+
+    <node pkg="gazebo_ros" exec="spawn_entity.py" name="spawn_$(var drone_ns)" output="log"
+          args="-entity $(var drone_ns) -file $(find-pkg-share sdt_uav_platform)/models/$(var sdf_model) -x $(var x) -y $(var y) -z 0.5"/>
+
+    <group if="$(var start_mission)">
+        <push-ros-namespace namespace="$(var drone_ns)"/>
+        <node pkg="sdt_uav_platform" exec="mission_node" name="mission" output="screen">
+            <param name="takeoff_alt" value="$(var takeoff_alt)"/>
+            <param name="land_at_end" value="$(var land_at_end)"/>
+        </node>
+    </group>
+</launch>

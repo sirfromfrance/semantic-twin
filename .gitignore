@@ -1,0 +1,22 @@
+# colcon
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Editors
+.vscode/
+*.db
+*.db-shm
+*.db-wal
+*.db.lock
+
+# Large model weights (downloaded automatically by ultralytics)
+*.pt
+
+# Docs kept local
+README.md

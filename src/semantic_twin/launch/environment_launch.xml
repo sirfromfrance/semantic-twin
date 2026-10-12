@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+  Part 1 (Physics & Environment): a single camera UAV (uav0, from
+  sdt_uav_platform: PX4 SITL + MAVROS + depth-camera Iris + mission node) in a
+  GPS-denied scenario, plus two person_actor "victims" placed at known
+  coordinates for ground-truth comparison.
+
+  The drone publishes /uav0/camera/{image_raw,camera_info,depth/image_raw,
+  depth/camera_info,points}. Flight (arm -> OFFBOARD -> takeoff -> waypoints)
+  is handled by sdt_uav_platform's mission_node; pass takeoff_alt / waypoints
+  through uav_launch.xml.
+
+  worlds/ruins.world is a collapsed-structure scene (two ruined-building
+  clusters plus scattered debris) with the two victims staged inside the rubble.
+-->
+<launch>
+
+    <include file="$(find-pkg-share gazebo_ros)/launch/gzserver.launch.py">
+        <arg name="world" value="$(find-pkg-share semantic_twin)/worlds/ruins.world" />
+    </include>
+    <include file="$(find-pkg-share gazebo_ros)/launch/gzclient.launch.py" />
+
+    <include file="$(find-pkg-share sdt_uav_platform)/launch/uav_launch.xml">
+        <arg name="instance" value="0" />
+        <arg name="x" value="0.0"/>
+        <arg name="y" value="0.0"/>
+        <arg name="takeoff_alt" value="5.0"/>
+    </include>
+
+    <!-- Ground-truth "victims": two static person actors. Keep these
+         coordinates in sync with the ground_truth_node param below so the
+         markers you compare against in RViz actually match the sim. -->
+    <node name="spawn_victim_0" pkg="gazebo_ros" exec="spawn_entity.py"
+          args="-entity victim_0 -file $(find-pkg-share semantic_twin)/models/person_actor/model.sdf -x 10.0 -y 5.0 -z 0.0"
+          output="log" />
+    <node name="spawn_victim_1" pkg="gazebo_ros" exec="spawn_entity.py"
+          args="-entity victim_1 -file $(find-pkg-share semantic_twin)/models/person_actor/model.sdf -x -8.0 -y 3.0 -z 0.0"
+          output="log" />
+
+    <node pkg="semantic_twin" exec="ground_truth_node" name="ground_truth_node" output="screen">
+        <param name="victim_positions" value="[10.0, 5.0, 0.0, -8.0, 3.0, 0.0]" type="yaml"/>
+        <param name="map_frame" value="map"/>
+    </node>
+
+</launch>

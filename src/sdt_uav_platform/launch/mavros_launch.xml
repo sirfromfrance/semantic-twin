@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- PX4 SITL UDP scheme: bind 14540+N, remote 14580+N (same as the lab package) -->
+    <arg name="instance" default="0"/>
+    <arg name="gcs_url" default=""/>
+    <arg name="tgt_component" default="1"/>
+    <arg name="fcu_protocol" default="v2.0"/>
+    <let name="bind_port" value="$(eval '14540 + int(\'$(var instance)\')')"/>
+    <let name="remote_port" value="$(eval '14580 + int(\'$(var instance)\')')"/>
+    <node pkg="mavros" exec="mavros_node" namespace="/uav$(var instance)/mavros" output="log">
+        <param name="fcu_url" value="udp://:$(var bind_port)@localhost:$(var remote_port)"/>
+        <param name="gcs_url" value="$(var gcs_url)"/>
+        <param name="tgt_system" value="$(eval '1 + int(\'$(var instance)\')')"/>
+        <param name="tgt_component" value="$(var tgt_component)"/>
+        <param name="fcu_protocol" value="$(var fcu_protocol)"/>
+    </node>
+</launch>
