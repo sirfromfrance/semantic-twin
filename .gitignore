@@ -15,8 +15,6 @@ __pycache__/
 *.db-wal
 *.db.lock
 
-# Large model weights (downloaded automatically by ultralytics)
 *.pt
 
-# Docs kept local
 README.md
