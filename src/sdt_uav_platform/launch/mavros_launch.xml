@@ -13,5 +13,8 @@
         <param name="tgt_system" value="$(eval '1 + int(\'$(var instance)\')')"/>
         <param name="tgt_component" value="$(var tgt_component)"/>
         <param name="fcu_protocol" value="$(var fcu_protocol)"/>
+        <param name="use_sim_time" value="true"/>
+       
+        <param from="$(find-pkg-share sdt_uav_platform)/config/mavros_tf.yaml"/>
     </node>
 </launch>

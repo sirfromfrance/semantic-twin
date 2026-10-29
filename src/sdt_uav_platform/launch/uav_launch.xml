@@ -22,6 +22,12 @@
     <node pkg="gazebo_ros" exec="spawn_entity.py" name="spawn_$(var drone_ns)" output="log"
           args="-entity $(var drone_ns) -file $(find-pkg-share sdt_uav_platform)/models/$(var sdf_model) -x $(var x) -y $(var y) -z 0.5"/>
 
+  
+    <node pkg="tf2_ros" exec="static_transform_publisher" name="tf_base_to_camera" output="log"
+          args="--x 0.1 --y 0 --z 0.05 --yaw 0 --pitch 0 --roll 0 --frame-id base_link --child-frame-id camera_link"/>
+    <node pkg="tf2_ros" exec="static_transform_publisher" name="tf_camera_to_optical" output="log"
+          args="--x 0 --y 0 --z 0 --yaw -1.5707963 --pitch 0 --roll -1.5707963 --frame-id camera_link --child-frame-id camera_optical_frame"/>
+
     <group if="$(var start_mission)">
         <push-ros-namespace namespace="$(var drone_ns)"/>
         <node pkg="sdt_uav_platform" exec="mission_node" name="mission" output="screen">

@@ -1,0 +1,8 @@
+# MAVROS 2 plugins run as sub-nodes, so their params must target /**/local_position,
+# not mavros_node. Publishes map -> base_link from PX4's local pose.
+/**/local_position:
+  ros__parameters:
+    frame_id: "map"
+    tf.send: true
+    tf.frame_id: "map"
+    tf.child_frame_id: "base_link"

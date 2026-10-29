@@ -7,6 +7,8 @@ import time
 import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.time import Time
 
 import message_filters
 from sensor_msgs.msg import Image, CameraInfo
@@ -56,6 +58,11 @@ class IntegrationNode(Node):
         self.declare_parameter('depth_topic', '/uav0/camera/depth/image_raw')
         self.declare_parameter('camera_info_topic', '/uav0/camera/camera_info')
         self.declare_parameter('map_frame', 'map')
+        # Gazebo stamps images with 'camera_link' (x-forward) although the pixel
+        # data follows the optical convention (z-forward). Back-projection
+        # produces optical-frame points, so transform from the optical frame.
+        # Empty = use the frame_id of the depth message.
+        self.declare_parameter('camera_optical_frame', 'camera_optical_frame')
         self.declare_parameter('merge_radius', 2.0)  # metres
         self.declare_parameter('min_confidence', 0.35)
         self.declare_parameter('marker_topic', 'semantic_map/victims')
@@ -65,6 +72,7 @@ class IntegrationNode(Node):
         self.declare_parameter('depth_scale_to_metres', 1.0)
 
         self.map_frame = self.get_parameter('map_frame').value
+        self.camera_optical_frame = self.get_parameter('camera_optical_frame').value
         self.merge_radius = float(self.get_parameter('merge_radius').value)
         self.min_confidence = float(self.get_parameter('min_confidence').value)
         self.depth_scale = float(self.get_parameter('depth_scale_to_metres').value)
@@ -83,12 +91,14 @@ class IntegrationNode(Node):
 
         camera_info_topic = self.get_parameter('camera_info_topic').value
         self.camera_info_sub = self.create_subscription(
-            CameraInfo, camera_info_topic, self.camera_info_callback, 10)
+            CameraInfo, camera_info_topic, self.camera_info_callback,
+            qos_profile_sensor_data)
 
         detections_topic = self.get_parameter('detections_topic').value
         depth_topic = self.get_parameter('depth_topic').value
         self.detections_sub = message_filters.Subscriber(self, Detection2DArray, detections_topic)
-        self.depth_sub = message_filters.Subscriber(self, Image, depth_topic)
+        self.depth_sub = message_filters.Subscriber(self, Image, depth_topic,
+                                             qos_profile=qos_profile_sensor_data)
         self.sync = message_filters.ApproximateTimeSynchronizer(
             [self.detections_sub, self.depth_sub], queue_size=10, slop=0.1)
         self.sync.registerCallback(self.detections_callback)
@@ -116,10 +126,10 @@ class IntegrationNode(Node):
 
         depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
 
-        camera_frame = depth_msg.header.frame_id
+        camera_frame = self.camera_optical_frame or depth_msg.header.frame_id
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.map_frame, camera_frame, depth_msg.header.stamp,
+                self.map_frame, camera_frame, Time.from_msg(depth_msg.header.stamp),
                 timeout=Duration(seconds=0.2))
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException) as e:
