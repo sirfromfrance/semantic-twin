@@ -7,6 +7,7 @@
   <maintainer email="gritsenko5555@gmail.com">valeriia</maintainer>
   <license>TODO: License declaration</license>
 
+  <exec_depend>std_srvs</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>mavros</exec_depend>

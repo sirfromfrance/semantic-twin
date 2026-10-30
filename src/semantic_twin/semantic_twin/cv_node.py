@@ -39,7 +39,8 @@ class CvNode(Node):
         self.declare_parameter('detections_topic', 'detections')
         self.declare_parameter('debug_image_topic', 'debug_image')
         self.declare_parameter('model_path', 'yolov8n.pt')
-        self.declare_parameter('confidence_threshold', 0.35)
+        self.declare_parameter('confidence_threshold', 0.5)
+        self.declare_parameter('imgsz', 640)  
         self.declare_parameter('publish_debug_image', True)
         self.declare_parameter('target_frame', 'map')
         self.declare_parameter('depth_patch_half', 3)   
@@ -53,6 +54,7 @@ class CvNode(Node):
         debug_image_topic = self.get_parameter('debug_image_topic').value
         model_path = self.get_parameter('model_path').value
         self.confidence_threshold = float(self.get_parameter('confidence_threshold').value)
+        self.imgsz = int(self.get_parameter('imgsz').value)
         self.publish_debug_image = bool(self.get_parameter('publish_debug_image').value)
         self.target_frame = str(self.get_parameter('target_frame').value)
         self.patch_half = int(self.get_parameter('depth_patch_half').value)
@@ -128,7 +130,10 @@ class CvNode(Node):
         frame = self.bridge.imgmsg_to_cv2(image_msg, 'bgr8')
         depth_frame = self.bridge.imgmsg_to_cv2(depth_msg, '32FC1')  # metres
 
-        results = self.model.predict(frame, classes=[COCO_PERSON_CLASS_ID], verbose=False)
+        results = self.model.predict(
+            frame, classes=[COCO_PERSON_CLASS_ID], imgsz=self.imgsz,
+            conf=self.confidence_threshold, verbose=False,
+        )
 
         detections = Detection2DArray()
         detections.header = image_msg.header
@@ -168,8 +173,6 @@ class CvNode(Node):
 
                 if self.target_frame:
                     try:
-                        # MAVROS stamps map->base_link from PX4 time, which can lag
-                        # the image stamp; use the latest transform (stamp 0).
                         pt_latest = PointStamped()
                         pt_latest.header.frame_id = pt.header.frame_id
                         pt_latest.point = pt.point
