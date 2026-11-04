@@ -40,6 +40,9 @@ class CvNode(Node):
         self.declare_parameter('debug_image_topic', 'debug_image')
         self.declare_parameter('model_path', 'yolov8n.pt')
         self.declare_parameter('confidence_threshold', 0.5)
+       
+        self.declare_parameter('min_size_m', 0.0)
+        self.declare_parameter('max_size_m', 0.0)
         self.declare_parameter('imgsz', 640)  
         self.declare_parameter('publish_debug_image', True)
         self.declare_parameter('target_frame', 'map')
@@ -55,6 +58,8 @@ class CvNode(Node):
         model_path = self.get_parameter('model_path').value
         self.confidence_threshold = float(self.get_parameter('confidence_threshold').value)
         self.imgsz = int(self.get_parameter('imgsz').value)
+        self.min_size_m = float(self.get_parameter('min_size_m').value)
+        self.max_size_m = float(self.get_parameter('max_size_m').value)
         self.publish_debug_image = bool(self.get_parameter('publish_debug_image').value)
         self.target_frame = str(self.get_parameter('target_frame').value)
         self.patch_half = int(self.get_parameter('depth_patch_half').value)
@@ -90,6 +95,8 @@ class CvNode(Node):
         )
         self.ts.registerCallback(self.sync_callback)
 
+        self.stats = dict(frames=0, frames_with_person=0, boxes=0, low_conf=0, no_depth=0, size_skipped=0, kept=0)
+        self.create_timer(10.0, self.log_stats)
         self.get_logger().info(
             f"CV node ready: '{image_topic}' + '{depth_topic}' + '{camera_info_topic}' "
             f"'{detections_topic}', target_frame='{self.target_frame}'"
@@ -97,6 +104,14 @@ class CvNode(Node):
 
 
 #callback for camera info
+    def log_stats(self):
+        st = self.stats
+        self.get_logger().info(
+            'last 10 s: frames={frames} with_person={frames_with_person} boxes={boxes} '
+            'low_conf={low_conf} no_depth={no_depth} size_skipped={size_skipped} kept={kept}'.format(**st))
+        for k in st:
+            st[k] = 0
+
     def camera_info_callback(self, msg: CameraInfo):
         # K = [fx 0 cx; 0 fy cy; 0 0 1]
         self.fx = float(msg.k[0])
@@ -135,16 +150,31 @@ class CvNode(Node):
             conf=self.confidence_threshold, verbose=False,
         )
 
+        self.stats['frames'] += 1
+        if len(results[0].boxes):
+            self.stats['frames_with_person'] += 1
         detections = Detection2DArray()
         detections.header = image_msg.header
 
         for box in results[0].boxes:
             conf = float(box.conf[0])
+            self.stats['boxes'] += 1
             if conf < self.confidence_threshold:
+                self.stats['low_conf'] += 1
                 continue
 
             u_c, v_c, w, h = box.xywh[0].cpu().numpy()
             z = self.robust_depth(depth_frame, u_c, v_c)
+
+            if z > 0 and (self.min_size_m > 0.0 or self.max_size_m > 0.0):
+                size_m = max(w / self.fx, h / self.fy) * z
+                if size_m < self.min_size_m or (self.max_size_m > 0.0 and size_m > self.max_size_m):
+                    self.get_logger().info(
+                        f'skip box conf={conf:.2f} size={size_m:.2f}m depth={z:.1f}m',
+                        throttle_duration_sec=1.0,
+                    )
+                    self.stats['size_skipped'] += 1
+                    continue
 
             det = Detection2D()
             det.header = image_msg.header
@@ -158,6 +188,9 @@ class CvNode(Node):
             hyp.hypothesis.score = conf
 
             label_xyz = 'depth ERROR'
+            self.stats['kept'] += 1
+            if z <= 0:
+                self.stats['no_depth'] += 1
             if z > 0:
                 x_l, y_l, z_l = self.backproject(u_c, v_c, z)
 

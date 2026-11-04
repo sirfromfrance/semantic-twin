@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- One camera drone: PX4 SITL + MAVROS + Gazebo entity + mission node, all under uav<N>.
-         Gazebo itself (world) is started by the caller. -->
+   
     <arg name="instance" default="0"/>
     <arg name="x" default="0.0"/>
     <arg name="y" default="0.0"/>
@@ -23,7 +22,7 @@
     </include>
 
     <node pkg="gazebo_ros" exec="spawn_entity.py" name="spawn_$(var drone_ns)" output="log"
-          args="-entity $(var drone_ns) -file $(find-pkg-share sdt_uav_platform)/models/$(var sdf_model) -x $(var x) -y $(var y) -z 0.5"/>
+          args="-timeout 180 -entity $(var drone_ns) -file $(find-pkg-share sdt_uav_platform)/models/$(var sdf_model) -x $(var x) -y $(var y) -z 0.5"/>
 
   
     <node pkg="tf2_ros" exec="static_transform_publisher" name="tf_base_to_camera" output="log"

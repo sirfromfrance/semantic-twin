@@ -5,7 +5,7 @@ from rclpy.qos import qos_profile_sensor_data
 
 from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from std_srvs.srv import Trigger
 
 
@@ -45,7 +45,6 @@ class UavMission(Node):
         self.target = PoseStamped()
         self.target.header.frame_id = 'map'
         self.target.pose.orientation.w = 1.0
-        # Published setpoint: moves towards `target` at max_speed instead of jumping to it.
         self.sp = PoseStamped()
         self.sp.header.frame_id = 'map'
         self.sp.pose.orientation.w = 1.0
@@ -57,6 +56,8 @@ class UavMission(Node):
         self.mode_client = self.create_client(SetMode, 'mavros/set_mode')
 
         self.create_service(Trigger, 'start_mission', self.start_cb)
+      
+        self.create_subscription(Point, 'goto', self.goto_cb, 10)
         self.create_timer(self.dt, self.loop)
         if not self.started:
             self.get_logger().info('Waiting for start: ros2 service call start_mission std_srvs/srv/Trigger')
@@ -67,6 +68,15 @@ class UavMission(Node):
         response.message = 'mission started'
         self.get_logger().info('Start requested')
         return response
+
+    def goto_cb(self, msg):
+        if self.pose is None or self.phase not in ('MISSION', 'DONE', 'MANUAL'):
+            self.get_logger().warn(f'goto ignored in phase {self.phase} (fly the route first)')
+            return
+        self.set_target(msg.x, msg.y, msg.z)
+        self.face_target()
+        self.set_phase('MANUAL')
+        self.get_logger().info(f'goto ({msg.x:.1f}, {msg.y:.1f}, {msg.z:.1f})')
 
     def state_cb(self, msg):
         self.state = msg
