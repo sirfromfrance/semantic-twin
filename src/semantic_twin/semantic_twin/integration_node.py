@@ -54,6 +54,16 @@ class SemanticCluster:
         self.count = 1
         self.first_seen = stamp
         self.last_seen = stamp
+        self.ext_sum = 0.0   # sum of the vertical extents (m) of the people-pixels, see _z_extent
+        self.ext_n = 0
+
+    def add_extent(self, extent):
+        if extent is not None:
+            self.ext_sum += extent
+            self.ext_n += 1
+
+    def mean_extent(self):
+        return self.ext_sum / self.ext_n if self.ext_n else None
 
     def update(self, point, confidence, stamp):
         # Running average, weighted by how many detections already went in.
@@ -86,6 +96,9 @@ class IntegrationNode(Node):
       
         self.declare_parameter('pose_topic', '/uav0/mavros/local_position/pose')
         self.declare_parameter('use_pose_history', True)
+        # Posture: height (m, in the map frame) spanned by the depth pixels in the middle of the box.
+        # An upright person spans roughly 0.8 m or more there, a person lying on the ground well under that.
+        self.declare_parameter('upright_min_extent', 0.45)
         self.declare_parameter('log_path', '/tmp/sdt_detections.csv')
         self.declare_parameter('min_confidence', 0.35)
         self.declare_parameter('marker_topic', 'semantic_map/victims')
@@ -102,7 +115,7 @@ class IntegrationNode(Node):
         log_path = self.get_parameter('log_path').value
         self.log_file = open(log_path, 'w') if log_path else None
         if self.log_file:
-            self.log_file.write('sim_time,confidence,x,y,z\n')
+            self.log_file.write('sim_time,confidence,x,y,z,z_extent\n')
         self.depth_scale = float(self.get_parameter('depth_scale_to_metres').value)
         export_path = self.get_parameter('export_path').value
         self.export_path = export_path
@@ -135,6 +148,7 @@ class IntegrationNode(Node):
         self.marker_pub = self.create_publisher(MarkerArray, marker_topic, 10)
 
         self.use_pose_history = bool(self.get_parameter('use_pose_history').value)
+        self.upright_min_extent = float(self.get_parameter('upright_min_extent').value)
         self.pose_hist = deque(maxlen=800)     # (arrival time s, position, quaternion xyzw)
         self.cam_to_base = None                # static (R, t) of the optical frame in base_link
         self.create_subscription(PoseStamped, self.get_parameter('pose_topic').value,
@@ -244,24 +258,24 @@ class IntegrationNode(Node):
             if transform is None:
                 r_mb, t_mb = pose
                 r_bc, t_bc = cam_to_base
-                p_map = r_mb @ (r_bc @ np.array(point_camera) + t_bc) + t_mb
-                map_point = (float(p_map[0]), float(p_map[1]), float(p_map[2]))
+                r_mo, t_mo = r_mb @ r_bc, r_mb @ t_bc + t_mb      # optical frame -> map
                 self.stats['hist'] += 1
             else:
-                point_stamped = PointStamped()
-                point_stamped.header.frame_id = camera_frame
-                point_stamped.header.stamp = depth_msg.header.stamp
-                point_stamped.point.x, point_stamped.point.y, point_stamped.point.z = point_camera
-                point_map = tf2_geometry_msgs.do_transform_point(point_stamped, transform)
-                map_point = (point_map.point.x, point_map.point.y, point_map.point.z)
+                q, tr = transform.transform.rotation, transform.transform.translation
+                r_mo = quat_to_mat([q.x, q.y, q.z, q.w])
+                t_mo = np.array([tr.x, tr.y, tr.z])
                 self.stats['latest'] += 1
+            p_map = r_mo @ np.array(point_camera) + t_mo
+            map_point = (float(p_map[0]), float(p_map[1]), float(p_map[2]))
+            extent = self._z_extent(depth_image, det, r_mo, t_mo)
 
             if self.log_file:
                 t_sim = depth_msg.header.stamp.sec + depth_msg.header.stamp.nanosec * 1e-9
-                self.log_file.write(f'{t_sim:.2f},{confidence:.3f},{map_point[0]:.3f},{map_point[1]:.3f},{map_point[2]:.3f}\n')
+                ext_txt = '' if extent is None else f'{extent:.3f}'
+                self.log_file.write(f'{t_sim:.2f},{confidence:.3f},{map_point[0]:.3f},{map_point[1]:.3f},{map_point[2]:.3f},{ext_txt}\n')
                 self.log_file.flush()
             self.stats['used'] += 1
-            self._merge_or_add(map_point, confidence, stamp)
+            self._merge_or_add(map_point, confidence, stamp, extent)
             changed = True
 
         if changed:
@@ -277,6 +291,34 @@ class IntegrationNode(Node):
             return -1.0
         return float(np.median(valid))
 
+    def _z_extent(self, depth_image, det, r_mo, t_mo):
+        """Height (m, map frame) spanned by the depth pixels in the middle of the detection box."""
+        uc, vc = det.bbox.center.position.x, det.bbox.center.position.y
+        hw, hh = 0.3 * det.bbox.size_x, 0.3 * det.bbox.size_y
+        h_img, w_img = depth_image.shape[:2]
+        u0, u1 = int(max(0, uc - hw)), int(min(w_img, uc + hw))
+        v0, v1 = int(max(0, vc - hh)), int(min(h_img, vc + hh))
+        if u1 - u0 < 2 or v1 - v0 < 2:
+            return None
+        d = depth_image[v0:v1:3, u0:u1:3].astype(float) * self.depth_scale
+        vv, uu = np.mgrid[v0:v1:3, u0:u1:3]
+        ok = np.isfinite(d) & (d > 0.0)
+        if ok.sum() < 15:
+            return None
+        d, uu, vv = d[ok], uu[ok], vv[ok]
+        fx, fy = self.camera_model.fx(), self.camera_model.fy()
+        cx, cy = self.camera_model.cx(), self.camera_model.cy()
+        pts = np.stack([(uu - cx) * d / fx, (vv - cy) * d / fy, d])      # 3 x N, optical frame
+        z = (r_mo[2] @ pts) + t_mo[2]
+        return float(np.percentile(z, 90) - np.percentile(z, 10))
+
+    def posture_of(self, cluster):
+        """('upright' | 'lying' | 'unknown', mean vertical extent)."""
+        ext = cluster.mean_extent()
+        if ext is None:
+            return 'unknown', None
+        return ('upright' if ext >= self.upright_min_extent else 'lying'), ext
+
     def _deproject(self, u, v, depth_m):
 
         fx, fy = self.camera_model.fx(), self.camera_model.fy()
@@ -286,16 +328,18 @@ class IntegrationNode(Node):
         z = depth_m
         return (x, y, z)
 
-    def _merge_or_add(self, point, confidence, stamp):
+    def _merge_or_add(self, point, confidence, stamp, extent=None):
         for cluster in self.clusters:
             if cluster.distance_to(point) < self.merge_radius:
                 cluster.update(point, confidence, stamp)
+                cluster.add_extent(extent)
                 if cluster.count == self.min_sightings:
                     self.get_logger().info(
                         f'Confirmed person #{cluster.id} at '
                         f'({cluster.x:.2f}, {cluster.y:.2f}, {cluster.z:.2f})')
                 return
         cluster = SemanticCluster(self._next_id, point, confidence, stamp)
+        cluster.add_extent(extent)
         self._next_id += 1
         self.clusters.append(cluster)
 
@@ -319,9 +363,9 @@ class IntegrationNode(Node):
             sphere.pose.position.z = cluster.z
             sphere.pose.orientation.w = 1.0
             sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.6
-            sphere.color.r = 1.0 - cluster.confidence
-            sphere.color.g = cluster.confidence
-            sphere.color.b = 0.0
+            posture, _ = self.posture_of(cluster)
+            sphere.color.r, sphere.color.g, sphere.color.b = {
+                'upright': (0.1, 0.8, 0.2), 'lying': (0.9, 0.15, 0.1)}.get(posture, (0.6, 0.6, 0.6))
             sphere.color.a = 0.9
             array.markers.append(sphere)
 
@@ -339,24 +383,28 @@ class IntegrationNode(Node):
             label.scale.z = 0.4
             label.color.r = label.color.g = label.color.b = 1.0
             label.color.a = 1.0
-            label.text = f'#{cluster.id} ({cluster.confidence:.2f}, n={cluster.count})'
+            label.text = f'#{cluster.id} {posture} ({cluster.confidence:.2f}, n={cluster.count})'
             array.markers.append(label)
 
         self.marker_pub.publish(array)
 
     def export_map_callback(self, request, response):
-        payload = [
-            {
+        payload = []
+        for c in self.clusters:
+            posture, ext = self.posture_of(c)
+            payload.append({
                 'id': c.id,
                 'x': c.x, 'y': c.y, 'z': c.z,
                 'confidence': c.confidence,
                 'detections': c.count,
                 'confirmed': c.count >= self.min_sightings,
+                'posture': posture,
+                # Role is inferred from posture only: a person lying on the ground is treated as a casualty.
+                'role': 'casualty' if posture == 'lying' else 'survivor' if posture == 'upright' else 'unknown',
+                'z_extent': ext,
                 'first_seen': c.first_seen,
                 'last_seen': c.last_seen,
-            }
-            for c in self.clusters
-        ]
+            })
         try:
             with open(self.export_path, 'w') as f:
                 json.dump(payload, f, indent=2)
