@@ -18,3 +18,12 @@ __pycache__/
 *.pt
 
 README.md
+
+disaster_no_cones.world
+src/semantic_twin/worlds/disaster_scene_open.world
+results/run_2026-11-04_pose-at-image-time/evaluation_all.txt
+results/run_2026-11-04_pose-at-image-time/evaluation_confirmed.txt
+results/run_2026-11-04_pose-at-image-time/README.txt
+results/run_2026-11-04_pose-at-image-time/sdt_detections.csv
+results/run_2026-11-04_pose-at-image-time/sdt_semantic_map.json
+src/semantic_twin/worlds/disaster_scene_lying.world
