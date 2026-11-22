@@ -95,7 +95,10 @@ class MapNode(Node):
         self.cam_to_base = None
         self.last_t = -1e9
         self.last_debug = -1e9
-        self.stats = dict(frames=0, used=0, no_pose=0, points=0, out_of_grid=0, no_rgb=0, cb_ms=0)
+       
+        self.pending = deque(maxlen=30)
+        self.pose_wait = 0.5           # s: frames further ahead of the newest pose than this are dropped
+        self.stats = dict(frames=0, used=0, no_pose=0, waited=0, points=0, out_of_grid=0, no_rgb=0, cb_ms=0)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -121,6 +124,8 @@ class MapNode(Node):
         st = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9     # when the pose was measured, not when this callback ran
         self.pose_hist.append((st if st > 0 else self.get_clock().now().nanoseconds * 1e-9,
                                np.array([p.x, p.y, p.z]), np.array([q.x, q.y, q.z, q.w])))
+        while self.pending and self.pending[0][0] <= self.pose_hist[-1][0]:
+            self.depth_cb(self.pending.popleft()[1], retry=True)
 
     def pose_at(self, t):
         hist = list(self.pose_hist)
@@ -159,21 +164,27 @@ class MapNode(Node):
     def info_cb(self, msg):
         self.K = (msg.k[0], msg.k[4], msg.k[2], msg.k[5])   # fx fy cx cy
 
-    def depth_cb(self, msg):
+    def depth_cb(self, msg, retry=False):
         t0 = time.perf_counter()
         try:
-            self._depth_cb(msg)
+            self._depth_cb(msg, retry)
         finally:
             self.stats['cb_ms'] = max(self.stats.get('cb_ms', 0), int(1000 * (time.perf_counter() - t0)))
 
-    def _depth_cb(self, msg):
-        self.stats['frames'] += 1
+    def _depth_cb(self, msg, retry=False):
+        if not retry:
+            self.stats['frames'] += 1
         if self.K is None:
             return
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         if t - self.last_t < self.min_period:
             return
         pose, c2b = self.pose_at(t), self.get_cam_to_base()
+        if (pose is None and not retry and self.pose_hist
+                and 0 < t - self.pose_hist[-1][0] <= self.pose_wait):
+            self.pending.append((t, msg))      # newer than the newest pose: retry when the next pose arrives
+            self.stats['waited'] += 1
+            return
         if pose is None or c2b is None:
             self.stats['no_pose'] += 1
             return
@@ -233,7 +244,6 @@ class MapNode(Node):
         self.stats['points'] += int(inside.sum())
 
     def classes(self):
-        """Per cell: -1 unknown, 0 free ground, 1 low obstacle, 2 obstacle (>= blocked_height)."""
         cls = np.full((self.ny, self.nx), -1, dtype=np.int8)
         seen = self.count >= self.min_points
         cls[seen] = 0
@@ -260,7 +270,7 @@ class MapNode(Node):
     def log_stats(self):
         cls = self.classes()
         self.get_logger().info(
-            'last 10 s: frames={frames} used={used} no_pose={no_pose} points={points} out_of_grid={out_of_grid} no_rgb={no_rgb} slowest_callback_ms={cb_ms} | '
+            'last 10 s: frames={frames} used={used} no_pose={no_pose} waited={waited} points={points} out_of_grid={out_of_grid} no_rgb={no_rgb} slowest_callback_ms={cb_ms} | '
             .format(**self.stats) +
             f'observed cells={int((cls >= 0).sum())} obstacle cells={int((cls == 2).sum())}')
         for k in self.stats:
