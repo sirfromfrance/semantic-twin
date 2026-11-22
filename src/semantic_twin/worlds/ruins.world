@@ -138,10 +138,7 @@
       <pose>9.6 6.1 0 0.2 0.1 -0.4</pose>
     </include>
 
-    <!-- ============================================================= -->
-    <!-- Cluster B: collapsed structure near victim_1 (-8, 3)           -->
-    <!-- ============================================================= -->
-
+  
     <include>
       <uri>model://house_1</uri>
       <name>ruined_house_b</name>
@@ -198,9 +195,7 @@
       <pose>-6.5 3.8 0 0 0 2.1</pose>
     </include>
 
-    <!-- ============================================================= -->
-    <!-- Scattered clutter elsewhere: visual/GPS-denial obstructions    -->
-    <!-- ============================================================= -->
+     -->
 
     <include>
       <uri>model://house_3</uri>
@@ -257,11 +252,7 @@
       </link>
     </model>
 
-    <!-- ============================================================= -->
-    <!-- People (this repo's person_actor model, from                  -->
-    <!-- semantic_twin/models/ -- see note below on GAZEBO_MODEL_PATH) -->
-    <!-- ============================================================= -->
-
+   
     <include>
       <uri>model://person_actor</uri>
       <name>bystander_1</name>
@@ -288,11 +279,7 @@
       <pose>13 3 0 0 0 -1.2</pose>
     </include>
 
-    <!-- ============================================================= -->
-    <!-- Cars: an ambulance staged near cluster A, others abandoned     -->
-    <!-- around the site                                                -->
-    <!-- ============================================================= -->
-
+   
     <include>
       <uri>model://ambulance</uri>
       <name>ambulance_1</name>
@@ -319,10 +306,7 @@
       <pose>-13 -7 0 0 0 -0.9</pose>
     </include>
 
-    <!-- ============================================================= -->
-    <!-- Loose bricks scattered around each rubble cluster              -->
-    <!-- ============================================================= -->
-
+   
     <model name="bricks_scatter_a">
       <static>true</static>
       <pose>11.8 3.8 0 0 0 0.2</pose>
@@ -368,10 +352,7 @@
       </link>
     </model>
 
-    <!-- ============================================================= -->
-    <!-- Rubbish: loose trash piles plus scattered cardboard boxes      -->
-    <!-- ============================================================= -->
-
+   
     <model name="rubbish_pile_a">
       <static>true</static>
       <pose>13 6.5 0 0 0 0.5</pose>

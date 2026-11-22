@@ -27,6 +27,9 @@ setup(
         'console_scripts': [
             'cv_node = semantic_twin.cv_node:main',
             'integration_node = semantic_twin.integration_node:main',
+            'map_node = semantic_twin.map_node:main',
+            'twin_node = semantic_twin.twin_node:main',
+            'operator_node = semantic_twin.operator_node:main',
             'ground_truth_node = semantic_twin.ground_truth_node:main',
             
         ],

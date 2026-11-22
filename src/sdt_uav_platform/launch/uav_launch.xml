@@ -38,6 +38,7 @@
             <param name="waypoints" value="$(var waypoints)" type="yaml"/>
             <param name="autostart" value="$(var autostart)"/>
             <param name="max_speed" value="$(var max_speed)"/>
+            <param name="use_sim_time" value="true"/>
         </node>
     </group>
 </launch>

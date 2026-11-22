@@ -19,6 +19,7 @@ from vision_msgs.msg import Detection2DArray
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PointStamped, PoseStamped
 from std_srvs.srv import Trigger
+from std_msgs.msg import String
 
 from cv_bridge import CvBridge
 from image_geometry import PinholeCameraModel
@@ -45,7 +46,6 @@ def slerp(q0, q1, a):
 
 
 class SemanticCluster:
-    """One accumulated estimate of a person's position in the map frame."""
 
     def __init__(self, cluster_id, point, confidence, stamp):
         self.id = cluster_id
@@ -54,8 +54,8 @@ class SemanticCluster:
         self.count = 1
         self.first_seen = stamp
         self.last_seen = stamp
-        self.ext_sum = 0.0   # sum of the vertical extents (m) of the people-pixels, see _z_extent
-        self.ext_n = 0
+        self.ext_sum = 0.0   # sum of the vertical extents of the people-pixels
+        self.ext_n = 0 #number of extent measurements
 
     def add_extent(self, extent):
         if extent is not None:
@@ -66,7 +66,6 @@ class SemanticCluster:
         return self.ext_sum / self.ext_n if self.ext_n else None
 
     def update(self, point, confidence, stamp):
-        # Running average, weighted by how many detections already went in.
         w = self.count
         self.x = (self.x * w + point[0]) / (w + 1)
         self.y = (self.y * w + point[1]) / (w + 1)
@@ -96,8 +95,7 @@ class IntegrationNode(Node):
       
         self.declare_parameter('pose_topic', '/uav0/mavros/local_position/pose')
         self.declare_parameter('use_pose_history', True)
-        # Posture: height (m, in the map frame) spanned by the depth pixels in the middle of the box.
-        # An upright person spans roughly 0.8 m or more there, a person lying on the ground well under that.
+       
         self.declare_parameter('upright_min_extent', 0.45)
         self.declare_parameter('log_path', '/tmp/sdt_detections.csv')
         self.declare_parameter('min_confidence', 0.35)
@@ -156,6 +154,8 @@ class IntegrationNode(Node):
         self.stats = dict(hist=0, latest=0, msgs=0, dets=0, low_conf=0, off_image=0, no_depth=0, tf_fail=0, used=0)
         self.create_timer(10.0, self.log_stats)
         self.export_srv = self.create_service(Trigger, '~/export_map', self.export_map_callback)
+        self.people_json_pub = self.create_publisher(String, 'semantic_map/people_json', 10)
+        self.create_timer(1.0, self.publish_people_json)
 
         self.get_logger().info(
             f"Integration node is ready: '{detections_topic}' + '{depth_topic}' "
@@ -174,7 +174,6 @@ class IntegrationNode(Node):
                                np.array([p.x, p.y, p.z]), np.array([q.x, q.y, q.z, q.w])))
 
     def _pose_at(self, t):
-        """Interpolated (R, t) of base_link in the map frame at sim time t, or None."""
         hist = list(self.pose_hist)
         if len(hist) < 2:
             return None
@@ -220,7 +219,6 @@ class IntegrationNode(Node):
         transform = None
         if pose is None or cam_to_base is None:
             try:
-                # Fallback: latest transform (MAVROS stamps lag the images, so an exact-time lookup fails).
                 transform = self.tf_buffer.lookup_transform(
                     self.map_frame, camera_frame, Time(), timeout=Duration(seconds=0.2))
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
@@ -282,7 +280,6 @@ class IntegrationNode(Node):
             self._publish_markers()
 
     def _robust_depth(self, depth_image, u, v):
-        """Median of valid depths in a small patch around and -1 if none"""
         r = self.patch_half
         patch = depth_image[max(0, v - r):v + r + 1, max(0, u - r):u + r + 1].astype(float)
         patch = patch * self.depth_scale
@@ -292,7 +289,6 @@ class IntegrationNode(Node):
         return float(np.median(valid))
 
     def _z_extent(self, depth_image, det, r_mo, t_mo):
-        """Height (m, map frame) spanned by the depth pixels in the middle of the detection box."""
         uc, vc = det.bbox.center.position.x, det.bbox.center.position.y
         hw, hh = 0.3 * det.bbox.size_x, 0.3 * det.bbox.size_y
         h_img, w_img = depth_image.shape[:2]
@@ -313,7 +309,6 @@ class IntegrationNode(Node):
         return float(np.percentile(z, 90) - np.percentile(z, 10))
 
     def posture_of(self, cluster):
-        """('upright' | 'lying' | 'unknown', mean vertical extent)."""
         ext = cluster.mean_extent()
         if ext is None:
             return 'unknown', None
@@ -388,7 +383,7 @@ class IntegrationNode(Node):
 
         self.marker_pub.publish(array)
 
-    def export_map_callback(self, request, response):
+    def _payload(self):
         payload = []
         for c in self.clusters:
             posture, ext = self.posture_of(c)
@@ -405,6 +400,13 @@ class IntegrationNode(Node):
                 'first_seen': c.first_seen,
                 'last_seen': c.last_seen,
             })
+        return payload
+
+    def publish_people_json(self):
+        self.people_json_pub.publish(String(data=json.dumps(self._payload())))
+
+    def export_map_callback(self, request, response):
+        payload = self._payload()
         try:
             with open(self.export_path, 'w') as f:
                 json.dump(payload, f, indent=2)

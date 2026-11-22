@@ -431,7 +431,7 @@
         <pose>0 0 0 0 -0 0</pose>
       </link>
       <pose>-7.02917 2.29443 0 0 -0 0</pose>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="person_standing_1">
@@ -482,7 +482,7 @@
         <pose>0 0 0 0 -0 0</pose>
       </link>
       <pose>5.6984 2.5996 0 0 -0 0</pose>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="person_standing_2">
@@ -533,7 +533,7 @@
         <pose>0 0 0 0 -0 0</pose>
       </link>
       <pose>3.12123 1.16424 0 0 -0 0</pose>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="person_standing_3">
@@ -584,7 +584,7 @@
         <pose>0 0 0 0 -0 0</pose>
       </link>
       <pose>2.05137 5.35478 0 0 -0 0</pose>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="person_walking">
@@ -635,7 +635,7 @@
         <pose>0 0 0 0 -0 0</pose>
       </link>
       <pose>3.12339 7.60615 0 0 -0 0</pose>
-      <static>false</static>
+      <static>true</static>
       <self_collide>false</self_collide>
     </model>
     <model name="rubble_0">
@@ -2990,7 +2990,47 @@
     </model>
     <model name="casualty_6">
       <static>true</static>
-      <pose>1.5 -8.0 0.2 1.5708 0 0.0</pose>
+      <pose>6.8 -2.6 0.12 -1.5708 0 0.0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <mesh>
+              <uri>model://standing_person/meshes/standing.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>model://standing_person/meshes/standing.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name="casualty_2">
+      <static>true</static>
+      <pose>0.0 -1.5 0.12 -1.5708 0 1.0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <mesh>
+              <uri>model://standing_person/meshes/standing.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>model://standing_person/meshes/standing.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name="casualty_3">
+      <static>true</static>
+      <pose>-8.0 -0.5 0.12 -1.5708 0 2.2</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
