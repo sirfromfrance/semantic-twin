@@ -4,6 +4,7 @@
   GET /            the page
   GET /twin.json   latest twin snapshot (from semantic_twin/twin_json)
   GET /query?q=J   forwards the JSON request J to the twin node and returns its answer
+  /api/v1/...      REST API, version 1 (see rest_api.py); GET /api/v1 lists the endpoints
 """
 import json
 import threading
@@ -15,6 +16,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from std_msgs.msg import String
 
+from semantic_twin import rest_api
 from semantic_twin.operator_page import PAGE
 
 
@@ -47,9 +49,29 @@ class OperatorNode(Node):
                 self.end_headers()
                 self.wfile.write(data)
 
+            def api(self, method):
+                u = urlparse(self.path)
+                body = b''
+                if method == 'POST':
+                    n = int(self.headers.get('Content-Length') or 0)
+                    if n > 65536:
+                        self.send(413, json.dumps({'ok': False, 'error': 'body too large'}), 'application/json')
+                        return
+                    body = self.rfile.read(n)
+                code, obj = rest_api.handle(method, u.path, u.query, body, node.ask, node.snapshot)
+                self.send(code, json.dumps(obj), 'application/json')
+
+            def do_POST(self):
+                if urlparse(self.path).path.startswith(rest_api.PREFIX):
+                    self.api('POST')
+                else:
+                    self.send(404, 'not found', 'text/plain')
+
             def do_GET(self):
                 u = urlparse(self.path)
-                if u.path in ('/', '/index.html'):
+                if u.path.startswith(rest_api.PREFIX):
+                    self.api('GET')
+                elif u.path in ('/', '/index.html'):
                     self.send(200, PAGE.replace('__TWIN__', 'null'), 'text/html; charset=utf-8')
                 elif u.path == '/twin.json':
                     if node.latest is None:
@@ -72,6 +94,18 @@ class OperatorNode(Node):
 
     def twin_cb(self, msg):
         self.latest = msg.data
+        self._parsed = None
+
+    def snapshot(self):
+        """Latest twin snapshot as a dict (parsed once per update), or None."""
+        latest = self.latest
+        if latest is None:
+            return None
+        cached = getattr(self, '_parsed', None)
+        if cached is None or cached[0] is not latest:
+            cached = (latest, json.loads(latest))
+            self._parsed = cached
+        return cached[1]
 
     def result_cb(self, msg):
         self.answer = msg.data
