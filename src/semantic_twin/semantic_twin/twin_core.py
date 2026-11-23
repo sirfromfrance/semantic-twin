@@ -270,6 +270,9 @@ SAFE_FIRE_M = 8.0          # ... and is at least this far from any fire
 WALK_SPEED = 1.0           # m/s over open ground
 RUBBLE_COST = 4.0          # rubble is this many times slower
 RUBBLE_MAX_M = 1.5         # a heap up to this height can be climbed; anything taller is a wall
+WALL_MIN_HIGH_FRAC = 0.25  # ... but only if at least this share of the cell's depth points is above 1 m: a 0.5 m cell
+                           # that a wall only touches at one edge keeps its max height but stays passable rubble.
+                           # Chosen on flights 8-10 (series 3); validated on a separate pair (series 4).
 START_FREE_M = 1.5         # the sensor cannot see inside or under things: the area around the start is passable
 
 
@@ -322,7 +325,9 @@ def plan_route(cls, g, start, hazards, goal=None, walk_speed=WALK_SPEED):
     z = g['z']
     unknown = np.isnan(z)
     wall = ~unknown & (z >= RUBBLE_MAX_M)
-    low = ~unknown & (z >= 0.5) & (z < RUBBLE_MAX_M)
+    if g.get('high_frac') is not None:          # sensed map: a wall needs most points high, not just one
+        wall &= g['high_frac'] >= WALL_MIN_HIGH_FRAC
+    low = ~unknown & (z >= 0.5) & ~wall
     tall = ~unknown & (z >= TALL)
     blocked = wall
     impass = _dilate(blocked, ROBOT_R_CELLS) | unknown | (d_fire < FIRE_BLOCK_M)
@@ -607,6 +612,8 @@ class Twin:
         g = dict(self.res)
         g['z'] = self.z
         g['veg_mask'] = self.veg_mask()
+        g['high_frac'] = (None if self.hi is None or self.n is None
+                          else np.where(self.n > 0, self.hi / np.maximum(self.n, 1), 0.0))   # share of points above 1 m
         return g
 
     def veg_mask(self):
@@ -757,7 +764,16 @@ class Twin:
             else:
                 e['status'] = 'not_reobserved'
             e['relations'] = relations(e, cls, g, structs or [], hz)
-            e['evacuation'] = routes.get(e['id'])
+            ev = routes.get(e['id'])
+            if ev is not None:
+                ev = dict(ev)                                   # the cached route stays unchanged
+                ins = e['relations'].get('inside_structure')
+                # The camera cannot see inside a ruin, so a route that starts in one is a guess: keep it, but flag it.
+                ev['verified'] = not (ev['status'] == 'ok' and ins)
+                if not ev['verified']:
+                    ev['notes'] = list(ev.get('notes') or []) + [
+                        f"starts inside {ins} ({e['relations'].get('inside_kind')}): route unverified, check before use"]
+            e['evacuation'] = ev
             e['triage'] = triage(e, e['relations'], e['evacuation'])
             e['changes'] = self._person_changes(e)
         ents.sort(key=lambda e: (-e['triage']['score'], e['id']))
@@ -873,7 +889,7 @@ class Twin:
         ev = p.get('evacuation') or {}
         return {'id': p['id'], 'x': p['x'], 'y': p['y'], 'posture': p['posture'], 'role': p['role'],
                 'status': p['status'], 'priority': p['triage']['level'], 'reasons': p['triage']['reasons'],
-                'evacuation': {k: ev.get(k) for k in ('status', 'length_m', 'walk_time_s', 'goal')}}
+                'evacuation': {k: ev.get(k) for k in ('status', 'verified', 'length_m', 'walk_time_s', 'goal')}}
 
     # ---- persistence
     def to_state(self):

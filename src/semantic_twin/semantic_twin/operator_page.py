@@ -129,7 +129,7 @@ function drawRoute(){
   el('circle',{cx:X(e.goal[0]),cy:Y(e.goal[1]),r:8,fill:'none',stroke:'var(--route)','stroke-width':3},g);
   el('text',{x:X(e.goal[0])+11,y:Y(e.goal[1])+4,fill:'var(--ink)','font-size':11,'font-weight':600},g).textContent=(customRoute&&customRoute.person===sel)?'chosen goal':'safe area'}}
 function evText(p){const e=p.evacuation;if(!e)return'';
- if(e.status==='ok')return `<div class="why">evacuation: ${e.length_m} m, about ${e.walk_time_s} s &middot; closest fire ${e.min_fire_distance_m} m${e.rubble_cells?` &middot; ${e.rubble_cells} rubble cells`:''}</div>`;
+ if(e.status==='ok')return `<div class="why">evacuation: ${e.length_m} m, about ${e.walk_time_s} s &middot; closest fire ${e.min_fire_distance_m} m${e.rubble_cells?` &middot; ${e.rubble_cells} rubble cells`:''}</div>`+(e.verified===false?`<div class="why" style="color:var(--ly)">&#9888; starts inside a ruin: route unverified, check before use</div>`:'');
  return `<div class="why" style="color:var(--ly)">evacuation: ${e.status==='unreachable'?'no passable route on the sensed map':e.status.replace(/_/g,' ')}</div>`}
 function whereText(p){const r=p.relations,ins=r.inside_structure,ns=r.nearest_structure||{};
  return ins?`in ${KIND[r.inside_kind]||ins}`:(ns.name?`${ns.distance_m} m from ${KIND[ns.kind]||ns.name}`:'no structure nearby')}

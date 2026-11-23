@@ -47,6 +47,7 @@ def main():
             z[m] = np.maximum(z[m], 0.8)
     gt = dict(g)
     gt['z'] = z
+    gt['high_frac'] = None      # the ground truth uses the world model only, never sensed point counts
     flat = np.zeros((ny, nx), dtype=np.int8)
     wall = z >= tc.RUBBLE_MAX_M
 
@@ -54,7 +55,8 @@ def main():
     for p in snap['people']:
         ev = p['evacuation']
         gt_free = tc.plan_route(flat, gt, (p['x'], p['y']), t.hazards)
-        row = {'id': p['id'], 'sensed': ev['status'], 'truth': gt_free['status'], 'collide': None, 'ratio': None}
+        row = {'id': p['id'], 'sensed': ev['status'], 'truth': gt_free['status'], 'collide': None, 'ratio': None,
+               'unverified': ev.get('verified') is False}
         if ev['status'] == 'ok':
             pts, bad, n = ev['path'], 0, 0
             for a, b in zip(pts, pts[1:]):
@@ -71,17 +73,23 @@ def main():
         rows.append(row)
 
     print(f'world {world.rsplit("/", 1)[-1]}; {len(rows)} people\n')
-    print('person  sensed map     ground truth   path in real walls   length vs truth')
+    print('person  sensed map     ground truth   path in real walls   length vs truth   flag')
     for r in rows:
         print(f"#{r['id']:<6d} {r['sensed']:14s} {r['truth']:14s} "
               f"{'-' if r['collide'] is None else format(r['collide'], '.1%'):>10s}"
-              f"{'-' if r['ratio'] is None else format(r['ratio'], '.2f'):>20s}")
+              f"{'-' if r['ratio'] is None else format(r['ratio'], '.2f'):>20s}"
+              f"{'   unverified (starts inside a structure)' if r['unverified'] else ''}")
     ok = [r for r in rows if r['sensed'] == 'ok']
     agree = sum(r['sensed'] == r['truth'] for r in rows)
     print(f"\nreachable on the sensed map: {len(ok)}/{len(rows)}; same answer as the ground truth: {agree}/{len(rows)}")
     if ok:
         print(f"routes that touch a real wall: {sum(r['collide'] > 0 for r in ok)}/{len(ok)}; "
               f"mean share of route points in walls: {np.mean([r['collide'] for r in ok]):.1%}")
+        fl = [r for r in ok if r['unverified']]
+        wrong = [r for r in ok if r['truth'] != 'ok']
+        print(f"routes flagged unverified: {len(fl)}/{len(ok)}; of those, truly unreachable: "
+              f"{sum(r['truth'] != 'ok' for r in fl)}; false 'reachable' routes caught by the flag: "
+              f"{sum(r['unverified'] for r in wrong)}/{len(wrong)}")
         rat = [r['ratio'] for r in ok if r['ratio']]
         if rat:
             print(f"length vs ground-truth route to the same goal: mean {np.mean(rat):.2f}, max {max(rat):.2f}")
