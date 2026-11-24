@@ -1,6 +1,7 @@
 """Operator page of the semantic twin (one self-contained HTML document).
 
-Live mode: served by operator_node, polls /twin.json and sends queries to /query.
+Live mode: served by operator_node; the page is a client of the REST API: it polls GET /api/v1/twin
+and asks for routes with POST /api/v1/people/{id}/route.
 Static mode: tools/render_twin.py replaces __TWIN__ with a saved twin export.
 """
 
@@ -38,7 +39,7 @@ svg{width:100%;height:auto;display:block;background:var(--bg);border-radius:6px}
 <section class="card"><h1>Semantic twin &ndash; operator view</h1>
 <p class="sub"><span id="meta"></span> &middot; <span id="status"></span></p>
 <div class="bar"><button id="bChg" class="on">change regions</button><button id="bTrail" class="on">trails</button>
-<button id="bGrid" class="on">sensed map</button><span id="mode"></span></div>
+<button id="bGrid" class="on">sensed map</button><span id="mode"></span> <a id="apiLink" href="/api/v1" target="_blank" rel="noopener" hidden style="margin-left:8px;color:inherit">REST API &#8599;</a></div>
 <svg id="map" role="img" aria-label="Top-down map of the scene with detected people"></svg>
 <div id="hint"></div>
 <div class="legend">
@@ -190,7 +191,7 @@ svg.addEventListener('click',ev=>{
  if(!pickGoal||sel===null||T0)return;
  const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const q=pt.matrixTransform(svg.getScreenCTM().inverse());
  const gx=q.x/K+bounds.x0,gy=bounds.y1-q.y/K;pickGoal=false;$('hint').textContent=`Planning route to (${gx.toFixed(1)}, ${gy.toFixed(1)}) ...`;
- fetch('/query?q='+encodeURIComponent(JSON.stringify({op:'route',person:sel,to:[gx,gy]}))).then(r=>r.json()).then(r=>{
+ fetch('/api/v1/people/'+sel+'/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:[gx,gy]})}).then(r=>r.json()).then(r=>{
   if(!r.ok){$('hint').textContent='Query failed: '+(r.error||'');return}
   customRoute={person:sel,route:r.route};const rt=r.route;
   $('hint').textContent=rt.status==='ok'?`Route to (${gx.toFixed(1)}, ${gy.toFixed(1)}): ${rt.length_m} m, about ${rt.walk_time_s} s, closest fire ${rt.min_fire_distance_m} m.`
@@ -200,11 +201,11 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.datase
 ['fLevel','fStatus','fPosture','fEvac','fChanged'].forEach(i=>$(i).onchange=render);
 [['bChg','chg'],['bTrail','trail'],['bGrid','grid']].forEach(([id,k])=>$(id).onclick=()=>{show[k]=!show[k];$(id).classList.toggle('on',show[k]);render()});
 function poll(){
- fetch('/twin.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.text()}).then(txt=>{
+ fetch('/api/v1/twin',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.text()}).then(txt=>{
   $('status').textContent='live';$('status').className='ok';
   if(txt!==lastRaw){lastRaw=txt;T=JSON.parse(txt);if(sel!==null&&!T.people.some(p=>p.id===sel))sel=null;render()}
  }).catch(()=>{$('status').textContent='no connection to the twin';$('status').className='bad'})}
 if(T0){T=T0;$('status').textContent='saved twin (static)';$('mode').textContent='';render()}
-else{$('mode').textContent='updates every 2 s';poll();setInterval(poll,2000)}
+else{$('mode').textContent='updates every 2 s';$('apiLink').hidden=false;poll();setInterval(poll,2000)}
 </script></body></html>
 """

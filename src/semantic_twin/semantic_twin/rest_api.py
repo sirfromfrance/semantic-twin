@@ -171,3 +171,46 @@ def _handle(method, path, qs, body, ask, snapshot):
             return _answer(ask({'op': 'route', 'person': pid}))
 
     raise ApiError(404, 'unknown endpoint')
+
+
+def index_html(snapshot):
+    """The endpoint list as a small clickable page for a browser (programs get JSON from the same address)."""
+    from html import escape
+    s = snapshot or {}
+    people = s.get('people') or []
+    structs = (s.get('static') or {}).get('structures') or []
+    pid = people[0]['id'] if people else 1
+    x, y = (round(people[0]['x'], 1), round(people[0]['y'], 1)) if people else (0, 0)
+    sname = structs[0]['name'] if structs else 'structure_0'
+    examples = {
+        '/api/v1/people/priority?n=5': '/api/v1/people/priority?n=3',
+        '/api/v1/people/near?x=&y=&radius=5': f'/api/v1/people/near?x={x}&y={y}&radius=5',
+        '/api/v1/people/near-fire?radius=': '/api/v1/people/near-fire?radius=6',
+        '/api/v1/people/{id}': f'/api/v1/people/{pid}',
+        '/api/v1/people/{id}/route': f'/api/v1/people/{pid}/route',
+        '/api/v1/structures/{name}': f'/api/v1/structures/{sname}',
+    }
+    rows = []
+    for line in __doc__.splitlines():
+        line = line.strip()
+        if not line.startswith(('GET ', 'POST ')):
+            continue
+        method, rest = line.split(None, 1)
+        path, _, desc = rest.partition('  ')
+        path = path.strip()
+        if method == 'GET':
+            href = examples.get(path, path)
+            cell = f'<a href="{escape(href)}" target="_blank">{escape(href)}</a>'
+        else:
+            cell = (f'<code>{escape(path)}</code><br><small>try in a terminal: <code>curl -X POST -H '
+                    f'\'Content-Type: application/json\' -d \'{{"to":[0,-15]}}\' '
+                    f'http://localhost:8080/api/v1/people/{pid}/route</code></small>')
+        rows.append(f'<tr><td>{method}</td><td>{cell}</td><td>{escape(desc.strip())}</td></tr>')
+    return ('<!doctype html><meta charset="utf-8"><title>Semantic twin REST API v1</title>'
+            '<style>body{font:14px system-ui,sans-serif;margin:24px;background:#1e1e1e;color:#ddd}'
+            'a{color:#7cb7ff}table{border-collapse:collapse}td{padding:6px 12px;border-bottom:1px solid #333;'
+            'vertical-align:top}code{color:#ccc}</style>'
+            '<h2>Semantic twin &ndash; REST API v1</h2>'
+            '<p>Click a link to see the JSON answer. Example values (person, structure) come from the current twin. '
+            'Programs that request this address get the same list as JSON.</p>'
+            f'<table>{"".join(rows)}</table><p><a href="/">&larr; operator page</a></p>')

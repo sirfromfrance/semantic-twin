@@ -26,14 +26,19 @@ class TwinNode(Node):
         P('hazard_world', 'disaster_scene.world')
         P('flight_name', '')
         P('save_period', 5.0)
+        P('view_only', False)              # true: serve a saved twin as it was (no new flight, no input, never writes)
         g = lambda n: self.get_parameter(n).value
         self.state_path, self.export_path = g('state_path'), g('export_path')
+        self.view_only = bool(g('view_only'))
+        if self.view_only and not (g('load_state') and os.path.exists(self.state_path)):
+            raise SystemExit(f'view_only needs load_state:=true and an existing state_path ({self.state_path})')
 
         hazards = tc.hazards_from_world(
             os.path.join(get_package_share_directory('semantic_twin'), 'worlds', g('hazard_world')))
         if g('load_state') and os.path.exists(self.state_path):
-            import shutil
-            shutil.copy(self.state_path, self.state_path + '.bak')       # the state is overwritten by autosave
+            if not self.view_only:
+                import shutil
+                shutil.copy(self.state_path, self.state_path + '.bak')   # the state is overwritten by autosave
             self.twin = tc.Twin.load(self.state_path)
             self.twin.hazards = hazards
             self.twin.use_sensed_fire = bool(g('use_sensed_fire'))
@@ -44,11 +49,15 @@ class TwinNode(Node):
                                    f'{len(self.twin.flights)} earlier flight(s)')
         else:
             self.twin = tc.Twin(hazards=hazards, use_sensed_fire=bool(g('use_sensed_fire')))
-        name = self.twin.begin_flight(g('flight_name') or None, reuse_empty=True)
+        if self.view_only:
+            name = self.twin.flights[-1]['name'] if self.twin.flights else None
+        else:
+            name = self.twin.begin_flight(g('flight_name') or None, reuse_empty=True)
         self.dirty = True
 
-        self.create_subscription(String, g('people_topic'), self.people_cb, 10)
-        self.create_subscription(String, g('grid_topic'), self.grid_cb, 1)
+        if not self.view_only:
+            self.create_subscription(String, g('people_topic'), self.people_cb, 10)
+            self.create_subscription(String, g('grid_topic'), self.grid_cb, 1)
         self.create_subscription(String, 'semantic_twin/query', self.query_cb, 10)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.twin_pub = self.create_publisher(String, 'semantic_twin/twin_json', latched)
@@ -56,7 +65,8 @@ class TwinNode(Node):
         self.create_service(Trigger, '~/export_twin', self.export_cb)
         self.create_service(Trigger, '~/new_flight', self.new_flight_cb)
         self.create_timer(float(g('save_period')), self.autosave)
-        self.get_logger().info(f'Twin node ready, current flight: {name}, hazards loaded: {len(hazards)}')
+        self.get_logger().info(f'Twin node ready, current flight: {name}, hazards loaded: {len(hazards)}'
+                               + (' (VIEW ONLY: nothing is written)' if self.view_only else ''))
 
     def people_cb(self, msg):
         try:
@@ -81,6 +91,10 @@ class TwinNode(Node):
 
     def write(self):
         snap = self.twin.snapshot()
+        if self.view_only:                              # publish for the page and the API, never touch files
+            self.twin_pub.publish(String(data=json.dumps(snap)))
+            self.dirty = False
+            return snap
         with open(self.export_path, 'w') as f:
             json.dump(snap, f, indent=1)
         os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
@@ -102,6 +116,9 @@ class TwinNode(Node):
             f"{s['structures']} structures, {s['observed_cells']} observed cells")
 
     def export_cb(self, request, response):
+        if self.view_only:
+            response.success, response.message = False, 'view only: nothing is written'
+            return response
         try:
             s = self.write()['summary']
             response.success = True
@@ -112,6 +129,9 @@ class TwinNode(Node):
         return response
 
     def new_flight_cb(self, request, response):
+        if self.view_only:
+            response.success, response.message = False, 'view only: no new flight'
+            return response
         name = self.twin.begin_flight(reuse_empty=True)
         response.success, response.message = True, f'started {name}'
         self.get_logger().info(response.message)

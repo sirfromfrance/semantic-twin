@@ -2,9 +2,9 @@
 """Operator interface: serves the live semantic twin as a web page.
 
   GET /            the page
-  GET /twin.json   latest twin snapshot (from semantic_twin/twin_json)
-  GET /query?q=J   forwards the JSON request J to the twin node and returns its answer
-  /api/v1/...      REST API, version 1 (see rest_api.py); GET /api/v1 lists the endpoints
+  GET /twin.json   latest twin snapshot (from semantic_twin/twin_json); kept for compatibility
+  GET /query?q=J   forwards the JSON request J to the twin node (kept for compatibility)
+  /api/v1/...      REST API, version 1 (see rest_api.py); the page uses only this
 """
 import json
 import threading
@@ -58,6 +58,10 @@ class OperatorNode(Node):
                         self.send(413, json.dumps({'ok': False, 'error': 'body too large'}), 'application/json')
                         return
                     body = self.rfile.read(n)
+                if (method == 'GET' and u.path.rstrip('/') == rest_api.PREFIX
+                        and 'text/html' in (self.headers.get('Accept') or '')):
+                    self.send(200, rest_api.index_html(node.snapshot()), 'text/html; charset=utf-8')
+                    return
                 code, obj = rest_api.handle(method, u.path, u.query, body, node.ask, node.snapshot)
                 self.send(code, json.dumps(obj), 'application/json')
 

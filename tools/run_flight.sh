@@ -12,12 +12,13 @@
 #   --load  continue the twin in --state (refuses if it does not exist); a copy is kept as OUT/twin_state_before.json
 #   --before-world   also score the change report (evaluate_changes.py) against this "before" world
 #   --route  inspection (8 m, default) or survey (12 m)
+#   --serve  after the scores, keep the operator page and REST API running for this twin (until Ctrl+C)
 #   --no-detector  do not start cv_node (mapping only, e.g. the 12 m survey); the twin gets no people from this flight
 # Exports, logs and the final twin state all go to --out. /tmp is not used. results/twin_state.json is never touched.
 
 WS=$HOME/ROS/thesis_ws
 W=$WS/src/semantic_twin/worlds
-NAME= WORLD= STATE= MODE= OUT= BEFORE= ROUTE=inspection GUI=gui:=false DETECT=1
+NAME= WORLD= STATE= MODE= OUT= BEFORE= ROUTE=inspection GUI=gui:=false DETECT=1 SERVE=0
 while [ $# -gt 0 ]; do
   case $1 in
     --name) NAME=$2; shift ;;
@@ -30,6 +31,7 @@ while [ $# -gt 0 ]; do
     --route) ROUTE=$2; shift ;;
     --gui) GUI=gui:=true ;;
     --no-detector) DETECT=0 ;;
+    --serve) SERVE=1 ;;
     *) echo "unknown argument: $1"; exit 2 ;;
   esac
   shift
@@ -64,9 +66,16 @@ export PYTHONUNBUFFERED=1
 
 # ---------- nothing from an earlier run may be alive
 LEFT='[m]ission_node|[m]avros_node|[g]zserver|[g]zclient|bin/[p]x4|semantic_twin/[l]ib/'
-if pgrep -f "$LEFT" >/dev/null; then
-  pgrep -fa "$LEFT" | cut -c1-120
+# flight processes only: viewers started by serve_twin.sh (view-only twin node, operator node with its own
+# port) run in their own ROS domain and are neither counted nor stopped here
+left_pids() { pgrep -fa "$LEFT" | grep -v -e 'view_only:=true' -e 'operator_node.*port:=' | awk '{print $1}'; }
+left_list() { pgrep -fa "$LEFT" | grep -v -e 'view_only:=true' -e 'operator_node.*port:=' | cut -c1-120; }
+if [ -n "$(left_pids)" ]; then
+  left_list
   fail "processes from an earlier run are still running (listed above). Close them first."
+fi
+if ss -ltn 2>/dev/null | grep -q ":8080 "; then
+  fail "port 8080 is in use (a viewer from serve_twin.sh?). Stop it, or start viewers on another port (e.g. 8090)."
 fi
 ros2 daemon stop >/dev/null 2>&1
 
@@ -84,12 +93,12 @@ stop_all() {
   [ $STOPPED = 1 ] && return; STOPPED=1
   say "stopping everything ..."
   for p in "${PIDS[@]}"; do kill -INT -- -"$p" 2>/dev/null; done
-  for i in $(seq 15); do pgrep -f "$LEFT" >/dev/null || break; sleep 1; done
+  for i in $(seq 15); do [ -z "$(left_pids)" ] && break; sleep 1; done
   for p in "${PIDS[@]}"; do kill -9 -- -"$p" 2>/dev/null; done
   sleep 1
-  pkill -9 -f "$LEFT" 2>/dev/null
+  for p in $(left_pids); do kill -9 "$p" 2>/dev/null; done
   sleep 1
-  if pgrep -f "$LEFT" >/dev/null; then say "WARNING: some processes are still running:"; pgrep -fa "$LEFT" | cut -c1-120
+  if [ -n "$(left_pids)" ]; then say "WARNING: some processes are still running:"; left_list
   else say "all stopped"; fi
 }
 trap 'stop_all' EXIT
@@ -222,3 +231,8 @@ if [ -n "$BEFORE" ]; then
 fi
 echo
 say "done. Results and logs: $OUT"
+if [ $SERVE = 1 ]; then
+  echo
+  exec bash "$WS/tools/serve_twin.sh" "$OUT/twin_state.json"
+fi
+echo "To look at this twin again (page + API): bash tools/serve_twin.sh $OUT/twin_state.json"
